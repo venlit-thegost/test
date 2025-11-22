@@ -1,0 +1,13 @@
+name: DEMO WORKFLOWS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  working_rdp:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: updating apt-update
+        run:  "sudo apt-get update"
