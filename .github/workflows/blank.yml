@@ -1,0 +1,62 @@
+name: SSH Access Ubuntu
+
+on:
+  workflow_dispatch:
+
+jobs:
+  secure-ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Update and install SSH server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
+          sudo systemctl enable ssh
+          sudo systemctl start ssh
+
+      - name: Configure SSH to allow password authentication
+        run: |
+          sudo sed -i 's/^#PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
+
+      - name: Create SSH user with random password
+        id: create_user
+        run: |
+          # Generate random password
+          PASSWORD=$(< /dev/urandom tr -dc 'A-Za-z0-9@#$%^&*()_+' | head -c16)
+          echo "sshpassword=$PASSWORD" >> $GITHUB_OUTPUT
+          
+          # Create user and set password
+          sudo useradd -m -s /bin/bash githubuser
+          echo "githubuser:$PASSWORD" | sudo chpasswd
+          sudo usermod -aG sudo githubuser
+
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      - name: Start Tailscale with auth key
+        run: |
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$GITHUB_RUN_ID
+
+      - name: Get Tailscale IP
+        id: get_ip
+        run: |
+          IP=$(tailscale ip -4)
+          echo "tailscale_ip=$IP" >> $GITHUB_OUTPUT
+
+      - name: Show SSH connection info
+        run: |
+          echo -e "\n=== SSH ACCESS ==="
+          echo "SSH command: ssh githubuser@${{ steps.get_ip.outputs.tailscale_ip }}"
+          echo "Password: ${{ steps.create_user.outputs.sshpassword }}"
+          echo "=================\n"
+
+      - name: Keep Runner Alive
+        run: |
+          while true; do
+            echo "SSH active - Press Ctrl+C to cancel workflow"
+            sleep 300
+          done
