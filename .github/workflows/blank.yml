@@ -58,5 +58,5 @@ jobs:
         run: |
           while true; do
             echo "SSH active - Press Ctrl+C to cancel workflow"
-            sleep 300
+            sleep 900
           done

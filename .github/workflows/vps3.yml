@@ -1,0 +1,177 @@
+name: DEMO WORKFLOWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      discord_user:
+        required: true
+        type: string
+
+      os:
+        description: "Which OS"
+        required: true
+        type: choice
+        options:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        default: windows-latest
+
+      username:
+        description: "Username"
+        required: true
+        type: string
+
+      password:
+        description: "Password"
+        required: true
+        type: string
+
+jobs:
+  linux_job:
+    if: ${{ inputs.os == 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Update and install SSH server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server jq
+          sudo systemctl enable ssh
+          sudo systemctl start ssh
+
+      - name: Configure SSH to allow password authentication
+        run: |
+          sudo sed -i 's/^#PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
+
+      - name: Create SSH user with password
+        run: |
+          sudo useradd -m -s /bin/bash ${{ inputs.username }}
+          echo "${{ inputs.username }}:${{ inputs.password }}" | sudo chpasswd
+          sudo usermod -aG sudo ${{ inputs.username }}
+
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/cloudflared
+          cloudflared --version
+
+      - name: Run Cloudflare Tunnel for SSH
+        env:
+          CF_TUNNEL_TOKEN: ${{ secrets.VPS3_TOKEN }}
+        run: |
+          nohup cloudflared tunnel run --token "$CF_TUNNEL_TOKEN" > cloudflared.log 2>&1 &
+          sleep 5
+          echo "Cloudflare Tunnel started."
+
+      - name: Send tunnel to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          addr="vps3-ssh.zapet.fun:22"
+
+          payload=$(jq -n --arg a "$addr" --arg user "${{ inputs.discord_user }}" \
+            '{content: ("Tunnel: \($user):domain=" + $a)}')
+
+          curl -H "Content-Type: application/json" \
+               -X POST \
+               -d "$payload" \
+               "$DISCORD_WEBHOOK"
+
+      - name: Keep Runner Alive
+        run: |
+          while true; do
+            echo "SSH active via Cloudflare Tunnel - Press Ctrl+C to cancel workflow"
+            sleep 900
+          done
+
+
+  secure-rdp:
+    if: ${{ inputs.os == 'windows-latest' }}
+    runs-on: windows-latest
+    timeout-minutes: 3600
+
+    steps:
+      - name: Configure Core RDP Settings
+        run: |
+          # Enable Remote Desktop and disable Network Level Authentication (if needed)
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                             -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                             -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                             -Name "SecurityLayer" -Value 0 -Force
+
+          # Remove any existing rule with the same name to avoid duplication
+          netsh advfirewall firewall delete rule name="RDP-Tailscale"
+          
+          # For testing, allow any incoming connection on port 3389
+          netsh advfirewall firewall add rule name="RDP-Tailscale" `
+            dir=in action=allow protocol=TCP localport=3389
+
+          # (Optional) Restart the Remote Desktop service to ensure changes take effect
+          Restart-Service -Name TermService -Force
+
+      - name: Create RDP User with Secure Password
+        env:
+          RDP_USERNAME: ${{ inputs.username }}
+          RDP_PASSWORD: ${{ inputs.password }}
+        run: |
+          $username = $env:RDP_USERNAME
+          $passwordPlain = $env:RDP_PASSWORD
+          $securePass = ConvertTo-SecureString $passwordPlain -AsPlainText -Force
+
+          New-LocalUser -Name $username -Password $securePass -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member $username
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+
+          # Export creds to env for later steps
+          echo "RDP_CREDS=User: $username | Password: $passwordPlain"
+
+          if (-not (Get-LocalUser -Name $username)) {
+            Write-Error "User creation failed"
+            exit 1
+          }
+
+      - name: Install cloudflared
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile "cloudflared.exe"
+          move cloudflared.exe C:\Windows\System32\cloudflared.exe
+          cloudflared.exe -v
+
+      - name: Start Cloudflare Tunnel
+        env:
+          CF_TUNNEL_TOKEN_RDP: ${{ secrets.VPS3_TOKEN }}
+        run: |
+          # Start tunnel in background
+          Start-Process -FilePath "cloudflared.exe" -ArgumentList @(
+            "tunnel","run","--token","$env:CF_TUNNEL_TOKEN_RDP"
+          ) -WindowStyle Hidden
+          Start-Sleep -Seconds 10
+          Write-Host "Cloudflare Tunnel started"
+
+      - name: Send tunnel to Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          $content = @{
+            content = "Tunnel: ${{ inputs.discord_user }}:domain=vps3-rdp.zapet.fun:3389"
+          } | ConvertTo-Json
+
+          Invoke-RestMethod -Uri $env:DISCORD_WEBHOOK `
+                            -Method Post `
+                            -ContentType "application/json" `
+                            -Body $content
+        shell: pwsh
+
+      - name: Keep runner alive
+        run: |
+          while ($true) {
+            Write-Host "Runner still alive for RDP..."
+            Start-Sleep -Seconds 300
+          }
