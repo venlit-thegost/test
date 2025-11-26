@@ -201,7 +201,6 @@ jobs:
               'git' {
                 Write-Host "Installing Git..."
                 Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/latest/download/Git-2.42.0-64-bit.exe" -OutFile "GitSetup.exe"
-                Start-Process -FilePath .\GitSetup.exe -ArgumentList "/VERYSILENT" -Wait
               }
               'python' {
                 Write-Host "Installing Python..."
