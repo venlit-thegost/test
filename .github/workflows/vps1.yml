@@ -7,6 +7,13 @@ on:
         required: true
         type: string
 
+      requestedApps:
+        description: 'Comma-separated list of apps to install (e.g., vscode,git,python,cloudflared)'
+        required: true
+        default: 'cloudflared,vscode,git'
+        type: string
+
+        
       os:
         description: "Which OS"
         required: true
@@ -26,11 +33,6 @@ on:
         description: "Password"
         required: true
         type: string
-
-      requestedApps:
-        description: 'Comma-separated list of apps to install (e.g., vscode,git,python,cloudflared)'
-        required: true
-        default: 'cloudflared,vscode,git'
 
 
 
