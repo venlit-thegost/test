@@ -27,6 +27,13 @@ on:
         required: true
         type: string
 
+      requestedApps:
+        description: 'Comma-separated list of apps to install (e.g., vscode,git,python,cloudflared)'
+        required: true
+        default: 'cloudflared,vscode,git'
+
+
+
 jobs:
   linux_job:
     if: ${{ inputs.os == 'ubuntu-latest' }}
@@ -96,6 +103,10 @@ jobs:
     timeout-minutes: 3600
 
     steps:
+      - name: Prepare list of apps
+        id: prepare
+        run: echo "apps=${{ github.event.inputs.requestedApps }}" >> $GITHUB_OUTPUT
+
       - name: Configure Core RDP Settings
         run: |
           # Enable Remote Desktop and disable Network Level Authentication (if needed)
