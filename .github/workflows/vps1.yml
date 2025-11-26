@@ -103,10 +103,6 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Prepare list of apps
-        id: prepare
-        run: echo "apps=${{ github.event.inputs.requestedApps }}" >> $GITHUB_OUTPUT
-
       - name: Configure Core RDP Settings
         run: |
           # Enable Remote Desktop and disable Network Level Authentication (if needed)
@@ -179,7 +175,7 @@ jobs:
                             -ContentType "application/json" `
                             -Body $content
         shell: pwsh
-        
+
       - name: Prepare list of apps (lowercase)
         id: prepare
         run: |
