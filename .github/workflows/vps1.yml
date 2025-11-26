@@ -179,7 +179,15 @@ jobs:
                             -ContentType "application/json" `
                             -Body $content
         shell: pwsh
+        
+      - name: Prepare list of apps (lowercase)
+        id: prepare
+        run: |
+          apps="${{ github.event.inputs.requestedApps }}"
+          echo "apps=${apps,,}" >> $GITHUB_OUTPUT
 
+      - name: Debug apps output
+        run: echo "Apps to install: ${{ steps.prepare.outputs.apps }}"
 
       - name: Install Visual Studio Code
         if: contains(steps.prepare.outputs.apps, 'vscode')
