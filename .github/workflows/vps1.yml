@@ -199,8 +199,10 @@ jobs:
                 Start-Process -FilePath .\VSCodeSetup.exe -ArgumentList "/silent", "/mergetasks=!runcode" -Wait
               }
               'git' {
-                Write-Host "Installing Git..."
-                Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/latest/download/Git-2.42.0-64-bit.exe" -OutFile "GitSetup.exe"
+                  Write-Host "Installing Git..."
+                  Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/latest/download/Git-2.42.0-64-bit.exe" -OutFile "GitSetup.exe"
+                  Start-Process -FilePath ".\GitSetup.exe" -ArgumentList "/VERYSILENT", "/NORESTART" -Wait
+                  Remove-Item ".\GitSetup.exe"
               }
               'python' {
                 Write-Host "Installing Python..."
