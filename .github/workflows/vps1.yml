@@ -103,6 +103,10 @@ jobs:
     timeout-minutes: 3600
 
     steps:
+      - name: Prepare list of apps
+        id: prepare
+        run: echo "apps=${{ github.event.inputs.requestedApps }}" >> $GITHUB_OUTPUT
+
       - name: Configure Core RDP Settings
         run: |
           # Enable Remote Desktop and disable Network Level Authentication (if needed)
@@ -175,36 +179,6 @@ jobs:
                             -ContentType "application/json" `
                             -Body $content
         shell: pwsh
-
-      - name: Prepare list of apps (lowercase)
-        id: prepare
-        run: |
-          apps="${{ github.event.inputs.requestedApps }}"
-          echo "apps=${apps,,}" >> $GITHUB_OUTPUT
-
-      - name: Debug apps output
-        run: echo "Apps to install: ${{ steps.prepare.outputs.apps }}"
-
-      - name: Install Visual Studio Code
-        if: contains(steps.prepare.outputs.apps, 'vscode')
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://update.code.visualstudio.com/latest/win32-x64-user/stable" -OutFile "VSCodeSetup.exe"
-          Start-Process -FilePath .\VSCodeSetup.exe -ArgumentList "/silent", "/mergetasks=!runcode" -Wait
-
-      - name: Install Git
-        if: contains(steps.prepare.outputs.apps, 'git')
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/latest/download/Git-2.42.0-64-bit.exe" -OutFile "GitSetup.exe"
-          Start-Process -FilePath .\GitSetup.exe -ArgumentList "/VERYSILENT" -Wait
-
-      - name: Install Python
-        if: contains(steps.prepare.outputs.apps, 'python')
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.12.0/python-3.12.0-amd64.exe" -OutFile "python.exe"
-          Start-Process -FilePath .\python.exe -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1" -Wait
 
       - name: Keep runner alive
         run: |
