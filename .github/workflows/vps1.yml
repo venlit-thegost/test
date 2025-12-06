@@ -7,11 +7,6 @@ on:
         required: true
         type: string
 
-      requestedApps:
-        required: true
-        type: string
-
-
       os:
         description: "Which OS"
         required: true
